@@ -45,17 +45,31 @@ export default function Dashboard() {
 
       if (profileErr) setMsg(profileErr.message)
 
-      // Medidas para o gráfico
+      // ✅ Medidas para o gráfico (TODAS)
       const { data: mData, error: mErr } = await supabase
         .from('auto_evaluations')
-        .select('date, weight, neck, thorax, waist')
+        .select(
+          `
+          date,
+          weight,
+          neck,
+          thorax,
+          biceps_right,
+          biceps_left,
+          waist,
+          abdomen,
+          hip,
+          thigh_mid_right,
+          thigh_mid_left
+        `
+        )
         .eq('user_id', user.id)
         .order('date', { ascending: true })
 
       if (mErr) setMsg(mErr.message)
       else setMeasures(mData || [])
 
-      // PDFs do aluno (fotogrametria)
+      // PDFs do aluno
       const { data: eData, error: eErr } = await supabase
         .from('evaluations')
         .select('id, created_at, title, file_path')
@@ -65,12 +79,10 @@ export default function Dashboard() {
       if (eErr) {
         setMsg(eErr.message)
       } else {
-        // gera signed urls
         const rows = eData || []
         const withUrls = await Promise.all(
           rows.map(async (row) => {
-            const { data: signed, error: sErr } = await supabase
-              .storage
+            const { data: signed, error: sErr } = await supabase.storage
               .from('avaliacoes-pdf')
               .createSignedUrl(row.file_path, 60 * 60) // 1h
 
@@ -100,13 +112,20 @@ export default function Dashboard() {
     }
   }, [])
 
+  // ✅ Transformação para o Recharts (TODAS as medidas)
   const chartData = useMemo(() => {
     return (measures || []).map((r) => ({
       date: r.date,
       Peso: r.weight,
       Pescoco: r.neck,
       Torax: r.thorax,
+      Biceps_D: r.biceps_right,
+      Biceps_E: r.biceps_left,
       Cintura: r.waist,
+      Abdomen: r.abdomen,
+      Quadril: r.hip,
+      CoxaMedia_D: r.thigh_mid_right,
+      CoxaMedia_E: r.thigh_mid_left,
     }))
   }, [measures])
 
@@ -142,7 +161,7 @@ export default function Dashboard() {
             borderRadius: 14,
             border: '1px solid #e5e5e5',
             padding: 16,
-            minHeight: 320,
+            minHeight: 360,
           }}
         >
           <div style={{ fontWeight: 900, marginBottom: 10, fontSize: 18 }}>Evolução</div>
@@ -152,7 +171,7 @@ export default function Dashboard() {
               Você ainda não tem histórico suficiente para o gráfico (precisa de 2+ avaliações).
             </div>
           ) : (
-            <div style={{ width: '100%', height: 260 }}>
+            <div style={{ width: '100%', height: 300 }}>
               <ResponsiveContainer>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -160,10 +179,18 @@ export default function Dashboard() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
+
+                  {/* ✅ Cada linha com uma cor diferente */}
                   <Line type="monotone" dataKey="Peso" stroke="#1f77b4" />
-                  <Line type="monotone" dataKey="Pescoco" stroke="#2ca02c" />
-                  <Line type="monotone" dataKey="Torax" stroke="#ff7f0e" />
-                  <Line type="monotone" dataKey="Cintura" stroke="#d62728" />
+                  <Line type="monotone" dataKey="Pescoco" stroke="#ff7f0e" />
+                  <Line type="monotone" dataKey="Torax" stroke="#2ca02c" />
+                  <Line type="monotone" dataKey="Biceps_D" stroke="#d62728" />
+                  <Line type="monotone" dataKey="Biceps_E" stroke="#9467bd" />
+                  <Line type="monotone" dataKey="Cintura" stroke="#8c564b" />
+                  <Line type="monotone" dataKey="Abdomen" stroke="#e377c2" />
+                  <Line type="monotone" dataKey="Quadril" stroke="#7f7f7f" />
+                  <Line type="monotone" dataKey="CoxaMedia_D" stroke="#bcbd22" />
+                  <Line type="monotone" dataKey="CoxaMedia_E" stroke="#17becf" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
