@@ -7,6 +7,7 @@ import Account from './pages/Account'
 import ChangePassword from './pages/ChangePassword'
 import AutoEvaluation from './pages/AutoEvaluation'
 import AdminDashboard from './pages/AdminDashboard'
+import StudentRegistration from './pages/StudentRegistration'
 
 
 
@@ -21,6 +22,7 @@ function App() {
       <Route path="/account" element={<Account />} />
       <Route path="/change-password" element={<ChangePassword />} />
       <Route path="/auto-evaluation" element={<AutoEvaluation />} />
+        <Route path="/student-registration" element={<StudentRegistration />} />
       </Routes>
   )
 }

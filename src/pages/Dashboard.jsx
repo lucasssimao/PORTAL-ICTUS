@@ -59,8 +59,8 @@ export default function Dashboard() {
           waist,
           abdomen,
           hip,
-          thigh_mid_right,
-          thigh_mid_left
+          mid_thigh_right,
+          mid_thigh_left
         `
         )
         .eq('user_id', user.id)
@@ -124,8 +124,8 @@ export default function Dashboard() {
       Cintura: r.waist,
       Abdomen: r.abdomen,
       Quadril: r.hip,
-      CoxaMedia_D: r.thigh_mid_right,
-      CoxaMedia_E: r.thigh_mid_left,
+      CoxaMedia_D: r.mid_thigh_right,
+      CoxaMedia_E: r.mid_thigh_left,
     }))
   }, [measures])
 
@@ -166,18 +166,28 @@ export default function Dashboard() {
         >
           <div style={{ fontWeight: 900, marginBottom: 10, fontSize: 18 }}>Evolução</div>
 
-          {chartData.length < 2 ? (
+          {chartData.length < 1 ? (
             <div style={{ opacity: 0.7 }}>
-              Você ainda não tem histórico suficiente para o gráfico (precisa de 2+ avaliações).
+              Você ainda não tem histórico suficiente para o gráfico (precisa de 1+ avaliação).
             </div>
           ) : (
             <div style={{ width: '100%', height: 300 }}>
               <ResponsiveContainer>
-                <LineChart data={chartData}>
+                <LineChart data={chartData} style={{ overflow: 'visible' }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#fff',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: 10,
+                      boxShadow: '0 8px 18px rgba(0, 0, 0, 0.12)',
+                    }}
+                    labelStyle={{ color: '#111', fontWeight: 700 }}
+                    itemStyle={{ color: '#111' }}
+                    wrapperStyle={{ zIndex: 20 }}
+                  />
                   <Legend />
 
                   {/* ✅ Cada linha com uma cor diferente */}
@@ -258,17 +268,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Sair */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut()
-              navigate('/')
-            }}
-          >
-            Sair
-          </button>
-        </div>
+        
       </div>
     </div>
   )

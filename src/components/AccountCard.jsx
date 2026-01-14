@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import './Account.css'
+import '../pages/Account.css'
 
-export function AccountCard({ onClose }) {
+export default function AccountCard({ onClose }) {
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -133,12 +133,6 @@ export function AccountCard({ onClose }) {
     setUploading(false)
     setMsg('Foto atualizada.')
   }
-  async function handleLogout() {
-    setMsg('')
-    await supabase.auth.signOut()
-    onClose?.()
-    navigate('/')
-  }
 
   const initials = (name || email || '?')
     .trim()
@@ -251,10 +245,6 @@ export function AccountCard({ onClose }) {
       )}
 
       {msg && <div className="account-help">{msg}</div>}
-      
-      <button className="account-button danger" type="button" onClick={handleLogout}>
-        Sair da conta
-      </button>
     </div>
   )
 }
@@ -265,13 +255,7 @@ function Row({ label, value }) {
       <div className="account-label">{label}</div>
       <div className="account-value">{value}</div>
     </div>
-  )
-}
+    
 
-export default function Account() {
-  return (
-    <div className="account-page">
-      <AccountCard />
-    </div>
   )
 }

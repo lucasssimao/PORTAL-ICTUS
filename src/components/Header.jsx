@@ -1,37 +1,13 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { supabase } from "../supabase";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AccountDrawer from "./AccountDrawer";
 
 export default function Header() {
   const navigate = useNavigate();
-  const location = useLocation();
-
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [profile, setProfile] = useState(null);
-
-  // Carrega perfil do usuário logado (name, email, avatar_url)
-  useEffect(() => {
-    const load = async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      const user = userData?.user;
-      if (!user) return;
-
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("name, email, avatar_url")
-        .eq("id", user.id)
-        .single();
-
-      setProfile(prof || { email: user.email });
-    };
-
-    load();
-  }, [location.pathname]);
 
   const openAccount = () => setDrawerOpen(true);
   const closeAccount = () => setDrawerOpen(false);
-
   return (
     <>
       <header
@@ -45,7 +21,6 @@ export default function Header() {
           background: "#fff",
         }}
       >
-        {/* ESQUERDA: Logo / Home */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
             onClick={() => navigate("/dashboard")}
@@ -62,7 +37,6 @@ export default function Header() {
           </button>
         </div>
 
-        {/* DIREITA: Minha Conta */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={openAccount}
@@ -79,8 +53,7 @@ export default function Header() {
           </button>
         </div>
       </header>
-
-      <AccountDrawer open={drawerOpen} onClose={closeAccount} profile={profile} />
+      <AccountDrawer open={drawerOpen} onClose={closeAccount} />
     </>
   );
 }
