@@ -4,13 +4,15 @@
 }
 
 .registration-wrapper {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 24px 20px 60px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 28px;
+  width: 100%;
 }
+
 .card {
   background: #ffffff;
   border-radius: 24px;
@@ -23,7 +25,7 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
 }
 
 .registration-header h1 {
@@ -31,36 +33,42 @@
   font-size: 32px;
 }
 
+.registration-header .secondary-button {
+  align-self: center;
+  margin-top: 6px;
+}
+
 .registration-actions {
   display: flex;
-  gap: 16px;
+  gap: 20px;
   flex-wrap: wrap;
   align-items: flex-end;
-  padding: 18px 20px;
+  padding: 22px 24px;
+  width: 100%;
 }
 
 .registration-card {
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e5e5e5;
-  padding: 24px;
+  padding: 38px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+  width: 100%;
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 5px 45px;
+  width: 100%;
 }
 
 .registration-card label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   font-weight: 600;
   color: #2b2b2b;
+  width: 100%;
 }
 
 .registration-card input,
@@ -68,10 +76,11 @@
 .registration-card textarea {
   border-radius: 10px;
   border: 1px solid #e6e6e6;
-  padding: 10px 12px;
-  font-size: 0.95rem;
+  padding: 12px 14px;
+  font-size: 1rem;
   font-family: inherit;
   background: #f6f6f6;
+  width: 100%;
 }
 
 .registration-card textarea {
@@ -80,7 +89,7 @@
 
 .section h2 {
   margin: 0 0 12px 0;
-  font-size: 18px;
+  font-size: 20px;
   color: #1f1f1f;
 }
 
@@ -89,7 +98,7 @@
 .upload-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   font-weight: 600;
 }
 
@@ -121,14 +130,33 @@
 .footer-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
   flex-wrap: wrap;
+}
+
+.textarea-field {
+  grid-column: span 2;
+}
+
+.upload-field {
+  grid-column: span 2;
 }
 
 .status {
   font-size: 0.9rem;
   color: #2f7d32;
   font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .textarea-field,
+  .upload-field {
+    grid-column: auto;
+  }
 }
 
 @media (max-width: 600px) {

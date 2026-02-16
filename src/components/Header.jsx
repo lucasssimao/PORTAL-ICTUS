@@ -1,13 +1,54 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabase";
 import AccountDrawer from "./AccountDrawer";
 
 export default function Header() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [autoEvalEnabled, setAutoEvalEnabled] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadAutoEval() {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("auto_eval_enabled")
+        .eq("id", user.id)
+        .single();
+
+      if (mounted) setAutoEvalEnabled(!!profile?.auto_eval_enabled);
+    }
+
+    loadAutoEval();
+
+    const channel = supabase
+      .channel("profiles-auto-eval")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles" },
+        (payload) => {
+          if (payload.new?.id) {
+            setAutoEvalEnabled(!!payload.new.auto_eval_enabled);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const openAccount = () => setDrawerOpen(true);
   const closeAccount = () => setDrawerOpen(false);
+
   return (
     <>
       <header
@@ -38,6 +79,23 @@ export default function Header() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {autoEvalEnabled && (
+            <button
+              onClick={() => navigate("/auto-evaluation")}
+              style={{
+                border: "1px solid #2563eb",
+                background: "#2563eb",
+                color: "#fff",
+                borderRadius: 12,
+                padding: "10px 12px",
+                cursor: "pointer",
+                fontWeight: 800,
+              }}
+            >
+              Realizar autoavaliação
+            </button>
+          )}
+
           <button
             onClick={openAccount}
             style={{

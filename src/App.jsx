@@ -22,7 +22,7 @@ function App() {
       <Route path="/account" element={<Account />} />
       <Route path="/change-password" element={<ChangePassword />} />
       <Route path="/auto-evaluation" element={<AutoEvaluation />} />
-        <Route path="/student-registration" element={<StudentRegistration />} />
+      <Route path="/student-registration" element={<StudentRegistration />} />
       </Routes>
   )
 }

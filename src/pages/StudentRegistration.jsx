@@ -152,31 +152,32 @@ export default function StudentRegistration() {
   }
 
   function handleNewRegistration() {
-    if (selectedId && isDirty) {
-      alert('Salve o cadastro atual e depois abra uma nova ficha.')
-      return
-    }
-    setSelectedId('')
-    setForm(emptyForm)
-    setAttachments([])
-    setIsDirty(false)
-    setMessage('')
+  if (selectedId) {
+    alert('Salve o cadastro aberto para incluir um novo.')
+    return
   }
+  setSelectedId('')
+  setForm(emptyForm)
+  setAttachments([])
+  setIsDirty(false)
+  setMessage('')
+}
 
   function handleSelectChange(event) {
-    const value = event.target.value
-    if (selectedId && isDirty) {
-      alert('Salve o cadastro atual e depois abra uma nova ficha.')
-      return
-    }
-    setSelectedId(value)
+  const value = event.target.value
+  if (selectedId) {
+    alert('Salve o cadastro aberto para incluir um novo.')
+    return
   }
+  setSelectedId(value)
+}
 
   async function handleSave() {
     if (!userId) {
       setMessage('Sessão expirada. Faça login novamente.')
       return
     }
+
     setSaving(true)
     setMessage('')
     const payload = mapFormToRow(form)
@@ -203,14 +204,20 @@ export default function StudentRegistration() {
     }
 
     const next = selectedId
-      ? registrations.map((item) => (item.id === selectedId ? data : item))
-      : [data, ...registrations]
+  ? registrations.map((item) => (item.id === selectedId ? data : item))
+  : [data, ...registrations]
 
-    setRegistrations(next)
-    setSelectedId(data.id)
-    setIsDirty(false)
-    setSaving(false)
-    setMessage('Cadastro salvo com sucesso.')
+setRegistrations(next)
+
+// limpa seleção + formulário após salvar
+setSelectedId('')
+setForm(emptyForm)
+setAttachments([])
+setIsDirty(false)
+
+setSaving(false)
+setMessage('Cadastro salvo com sucesso.')
+
   }
 
   function handleEvolutionFocus() {
@@ -303,8 +310,172 @@ export default function StudentRegistration() {
             </label>
           </div>
 
-          {/* resto do form permanece igual */}
-          {/* (mantive tudo que você já tinha abaixo) */}
+          <div className="section">
+            <h2>Endereço</h2>
+            <div className="grid">
+              <label>
+                Logradouro
+                <input
+                  value={form.addressStreet}
+                  onChange={(event) => handleChange('addressStreet', event.target.value)}
+                />
+              </label>
+
+              <label>
+                Número
+                <input
+                  value={form.addressNumber}
+                  onChange={(event) => handleChange('addressNumber', event.target.value)}
+                />
+              </label>
+
+              <label>
+                Cidade
+                <input
+                  value={form.addressCity}
+                  onChange={(event) => handleChange('addressCity', event.target.value)}
+                />
+              </label>
+
+              <label>
+                Estado
+                <input
+                  value={form.addressState}
+                  onChange={(event) => handleChange('addressState', event.target.value)}
+                />
+              </label>
+
+              <label>
+                CEP
+                <input
+                  value={form.addressZip}
+                  onChange={(event) => handleChange('addressZip', event.target.value)}
+                />
+              </label>
+
+              <label>
+                Complemento
+                <input
+                  value={form.addressComplement}
+                  onChange={(event) => handleChange('addressComplement', event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="grid">
+            <label>
+              Sexo
+              <select value={form.gender} onChange={(event) => handleChange('gender', event.target.value)}>
+                <option value="">Selecione</option>
+                <option value="Feminino">Feminino</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </label>
+
+            <label>
+              RG
+              <input value={form.rg} onChange={(event) => handleChange('rg', event.target.value)} />
+            </label>
+
+            <label>
+              CPF
+              <input value={form.cpf} onChange={(event) => handleChange('cpf', event.target.value)} />
+            </label>
+
+            <label>
+              Profissão
+              <input
+                value={form.profession}
+                onChange={(event) => handleChange('profession', event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="section">
+            <h2>Modalidade</h2>
+            <div className="grid">
+              <label>
+                Serviço prestado
+                <select
+                  value={form.modality}
+                  onChange={(event) => handleChange('modality', event.target.value)}
+                >
+                  <option value="">Selecione</option>
+                  <option value="Pilates">Pilates</option>
+                  <option value="Fisioterapia">Fisioterapia</option>
+                </select>
+              </label>
+
+              {form.modality === 'Pilates' && (
+                <label>
+                  Plano do Pilates
+                  <select
+                    value={form.pilatesPlan}
+                    onChange={(event) => handleChange('pilatesPlan', event.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="Mensal">Mensal</option>
+                    <option value="Trimestral">Trimestral</option>
+                    <option value="Semestral">Semestral</option>
+                    <option value="Anual">Anual</option>
+                  </select>
+                </label>
+              )}
+            </div>
+          </div>
+
+          <div className="grid">
+            <label>
+              Médico responsável
+              <input
+                value={form.doctorName}
+                onChange={(event) => handleChange('doctorName', event.target.value)}
+                placeholder="Nome do médico"
+              />
+            </label>
+            <label>
+              CRM
+              <input
+                value={form.doctorCrm}
+                onChange={(event) => handleChange('doctorCrm', event.target.value)}
+                placeholder="CRM"
+              />
+            </label>
+          </div>
+
+          <label className="textarea-field">
+            Histórico do paciente
+            <textarea
+              value={form.history}
+              onChange={(event) => handleChange('history', event.target.value)}
+              rows={5}
+            />
+          </label>
+
+          <label className="upload-field">
+            Anexar exames (PDF ou JPG)
+            <input
+              type="file"
+              accept=".pdf,image/*"
+              multiple
+              onChange={(event) => setAttachments(Array.from(event.target.files || []))}
+            />
+            {attachments.length > 0 && (
+              <span>{attachments.length} arquivo(s) selecionado(s)</span>
+            )}
+          </label>
+
+          <label className="textarea-field">
+            Evolução
+            <textarea
+              value={form.evolution}
+              onChange={(event) => handleChange('evolution', event.target.value)}
+              onFocus={handleEvolutionFocus}
+              rows={6}
+            />
+          </label>
 
           <div className="footer-actions">
             <button className="primary-button" type="button" onClick={handleSave} disabled={saving}>
