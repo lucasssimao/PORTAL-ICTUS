@@ -28,6 +28,53 @@ export default function AdminDashboard() {
   const [pdfFile, setPdfFile] = useState(null)
   const [pdfTitle, setPdfTitle] = useState('')
   const [uploading, setUploading] = useState(false)
+const [sendingAccessLink, setSendingAccessLink] = useState(false)
+
+  async function loadStudents() {
+    const [adminStudentsRes, recordsRes] = await Promise.all([
+      supabase.from('admin_students').select('*').order('name', { ascending: true }),
+      supabase.from('patient_records').select('id,name,email,created_at').order('name', { ascending: true }),
+    ])
+
+    if (adminStudentsRes.error) {
+      setMsg(adminStudentsRes.error.message)
+    }
+
+    const adminStudents = (adminStudentsRes.data || []).map((student) => ({
+      ...student,
+      has_login: true,
+    }))
+
+    if (recordsRes.error) {
+      return adminStudents
+    }
+
+    const knownEmails = new Set(
+      adminStudents
+        .map((student) => student.email?.trim().toLowerCase())
+        .filter(Boolean)
+    )
+
+    const recordsWithoutLogin = (recordsRes.data || [])
+      .filter((record) => {
+        const email = record.email?.trim().toLowerCase()
+        if (!email) return true
+        return !knownEmails.has(email)
+      })
+      .map((record) => ({
+        user_id: `record:${record.id}`,
+        name: record.name,
+        email: record.email,
+        user_created_at: record.created_at,
+        status: 'Sem login',
+        auto_eval_enabled: false,
+        has_login: false,
+      }))
+
+    return [...adminStudents, ...recordsWithoutLogin].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })
+    )
+  }
 
   useEffect(() => {
     let mounted = true
@@ -59,15 +106,8 @@ export default function AdminDashboard() {
 
       setIsAdmin(true)
 
-      const { data, error } = await supabase
-        .from('admin_students')
-        .select('*')
-        .order('name', { ascending: true })
-
-      if (error) setMsg(error.message)
-
-      const list = data || []
-      setStudents(list)
+      const list = await loadStudents()
+            setStudents(list)
       if (list.length > 0) setSelectedId(list[0].user_id)
 
       setLoading(false)
@@ -125,6 +165,10 @@ export default function AdminDashboard() {
   async function applyStatusChange() {
     setMsg('')
     if (!selectedStudent) return
+    if (!selectedStudent.has_login) {
+      setMsg('Esse cadastro ainda não possui usuário de login para alterar status.')
+      return
+    }
     if (!newStatus) {
       setMsg('Selecione um status antes de alterar.')
       return
@@ -153,6 +197,10 @@ export default function AdminDashboard() {
   async function toggleAutoEval() {
     setMsg('')
     if (!selectedStudent) return
+    if (!selectedStudent.has_login) {
+      setMsg('Esse cadastro ainda não possui usuário de login para liberar autoavaliação.')
+      return
+    }
 
     const { error } = await supabase
       .from('profiles')
@@ -174,9 +222,64 @@ export default function AdminDashboard() {
     setMsg('Autoavaliação atualizada.')
   }
 
+  
+  async function sendAccessLink() {
+    setMsg('')
+    if (!selectedStudent) return
+
+    const email = selectedStudent.email?.trim()
+    if (!email) {
+      setMsg('Esse cadastro não possui e-mail para envio do convite de acesso.')
+      return
+    }
+
+    const redirectTo = `${window.location.origin}/reset-password`
+
+    try {
+      setSendingAccessLink(true)
+
+      if (selectedStudent.has_login) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+        if (error) {
+          setMsg(error.message)
+          return
+        }
+
+        setMsg('Link enviado. O aluno receberá o e-mail institucional da ICTUS para criar/redefinir a senha de acesso ao portal.')
+        return
+      }
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: redirectTo,
+          data: {
+            full_name: selectedStudent.name || null,
+            invited_by: 'Admin ICTUS',
+            invite_context: 'Portal ICTUS',
+          },
+        },
+      })
+
+      if (error) {
+        setMsg(error.message)
+        return
+      }
+
+      setMsg('Convite enviado. O aluno receberá um e-mail de acesso ao Portal ICTUS para ativar o login e definir as credenciais.')
+    } finally {
+      setSendingAccessLink(false)
+    }
+  }
+
   async function uploadPdf() {
     setMsg('')
     if (!selectedStudent) return
+    if (!selectedStudent.has_login) {
+      setMsg('Esse cadastro ainda não possui usuário de login para vincular PDF.')
+      return
+    }
     if (!pdfFile) {
       setMsg('Selecione um arquivo PDF.')
       return
@@ -327,6 +430,13 @@ export default function AdminDashboard() {
 
                 {selectedStudent ? (
                   <>
+                                      {!selectedStudent.has_login && (
+                      <div style={{ fontSize: 13, color: '#b45309' }}>
+                        Cadastro criado sem usuário de login. Para liberar autoavaliação, primeiro é
+                        necessário vincular/criar o usuário do aluno.
+                      </div>
+                    )}
+
                     <div style={{ fontSize: 13, opacity: 0.8 }}>
                       Status atual: <b>{selectedStudent.status || 'Ativo'}</b>
                     </div>
@@ -352,6 +462,14 @@ export default function AdminDashboard() {
                       {selectedStudent.auto_eval_enabled
                         ? 'Fechar autoavaliação'
                         : 'Liberar autoavaliação'}
+                    </button>
+                    
+                     <button
+                      type="button"
+                      onClick={sendAccessLink}
+                      disabled={sendingAccessLink || !selectedStudent.email}
+                    >
+                      {sendingAccessLink ? 'Enviando convite...' : 'Enviar link para criar login'}
                     </button>
 
                     <div

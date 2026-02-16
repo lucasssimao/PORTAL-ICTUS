@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import AccountDrawer from "./AccountDrawer";
 
 export default function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [autoEvalEnabled, setAutoEvalEnabled] = useState(false);
 
@@ -76,6 +77,22 @@ export default function Header() {
           >
             ICTUS
           </button>
+          
+          {location.pathname === "/admin" && (
+            <button
+              onClick={() => navigate("/student-registration")}
+              style={{
+                border: "1px solid rgba(0,0,0,0.10)",
+                background: "rgba(0,0,0,0.04)",
+                borderRadius: 12,
+                padding: "10px 12px",
+                cursor: "pointer",
+                fontWeight: 800,
+              }}
+            >
+              Novo Cadastro
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
