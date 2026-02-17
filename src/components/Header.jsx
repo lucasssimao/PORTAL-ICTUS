@@ -11,39 +11,63 @@ export default function Header() {
 
   useEffect(() => {
     let mounted = true;
+    let channel;
+
+    const resolveAutoEvalValue = (profile) => {
+      if (!profile) return false;
+      if (profile.auto_eval_enabled != null) return !!profile.auto_eval_enabled;
+      if (profile.auto_eval_enable != null) return !!profile.auto_eval_enable;
+      return false;
+    };
 
     async function loadAutoEval() {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user;
       if (!user) return;
 
-      const { data: profile } = await supabase
+      // Usa select("*") para evitar erro quando um dos nomes de coluna varia por ambiente.
+      const { data: profileById } = await supabase
         .from("profiles")
-        .select("auto_eval_enabled")
+        .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (mounted) setAutoEvalEnabled(!!profile?.auto_eval_enabled);
+      let profile = profileById;
+
+      if (!profile) {
+        // Fallback opcional para ambientes que espelham auth uid em profiles.user_id.
+        const { data: profileByUserId } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        profile = profileByUserId;
+      }
+
+      if (mounted) setAutoEvalEnabled(resolveAutoEvalValue(profile));
+
+      channel = supabase
+        .channel(`profiles-auto-eval-${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            setAutoEvalEnabled(resolveAutoEvalValue(payload.new));
+          }
+        )
+        .subscribe();
     }
 
     loadAutoEval();
 
-    const channel = supabase
-      .channel("profiles-auto-eval")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles" },
-        (payload) => {
-          if (payload.new?.id) {
-            setAutoEvalEnabled(!!payload.new.auto_eval_enabled);
-          }
-        }
-      )
-      .subscribe();
-
     return () => {
       mounted = false;
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, []);
 
@@ -77,7 +101,7 @@ export default function Header() {
           >
             ICTUS
           </button>
-          
+
           {location.pathname === "/admin" && (
             <button
               onClick={() => navigate("/student-registration")}

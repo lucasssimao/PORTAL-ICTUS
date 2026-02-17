@@ -19,31 +19,42 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [adminAuth, setAdminAuth] = useState({ id: null, email: null })
 
   const [students, setStudents] = useState([])
   const [selectedId, setSelectedId] = useState('')
-  const [newStatus, setNewStatus] = useState('') // vazio por default
+  const [newStatus, setNewStatus] = useState('')
 
-  // Upload PDF
   const [pdfFile, setPdfFile] = useState(null)
   const [pdfTitle, setPdfTitle] = useState('')
   const [uploading, setUploading] = useState(false)
-const [sendingAccessLink, setSendingAccessLink] = useState(false)
+  const [sendingAccessLink, setSendingAccessLink] = useState(false)
 
   async function loadStudents() {
     const [adminStudentsRes, recordsRes] = await Promise.all([
       supabase.from('admin_students').select('*').order('name', { ascending: true }),
-      supabase.from('patient_records').select('id,name,email,created_at').order('name', { ascending: true }),
+      supabase
+        .from('patient_records')
+        .select('id,name,email,created_at,user_id')
+        .order('name', { ascending: true }),
     ])
 
     if (adminStudentsRes.error) {
       setMsg(adminStudentsRes.error.message)
     }
 
-    const adminStudents = (adminStudentsRes.data || []).map((student) => ({
-      ...student,
-      has_login: true,
-    }))
+    const adminStudents = (adminStudentsRes.data || []).map((student) => {
+      const userId = [student.user_id, student.profile_id].find((value) => isUuid(value)) || null
+      const autoEvalEnabled =
+        student.auto_eval_enabled ?? student.auto_eval_enable ?? false
+
+      return {
+        ...student,
+        user_id: userId,
+        auto_eval_enabled: !!autoEvalEnabled,
+        has_login: !!userId,
+      }
+    })
 
     if (recordsRes.error) {
       return adminStudents
@@ -61,15 +72,19 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
         if (!email) return true
         return !knownEmails.has(email)
       })
-      .map((record) => ({
-        user_id: `record:${record.id}`,
-        name: record.name,
-        email: record.email,
-        user_created_at: record.created_at,
-        status: 'Sem login',
-        auto_eval_enabled: false,
-        has_login: false,
-      }))
+      .map((record) => {
+        const linkedUserId = isUuid(record.user_id) ? record.user_id : null
+
+        return {
+          user_id: linkedUserId || `record:${record.id}`,
+          name: record.name,
+          email: record.email,
+          user_created_at: record.created_at,
+          status: 'Sem login',
+          auto_eval_enabled: false,
+          has_login: !!linkedUserId,
+        }
+      })
 
     return [...adminStudents, ...recordsWithoutLogin].sort((a, b) =>
       (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })
@@ -89,11 +104,34 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
         return
       }
 
-      const { data: profile } = await supabase
+      setAdminAuth({ id: user.id, email: user.email?.trim().toLowerCase() || null })
+
+      let profile = null
+
+      const { data: profileById, error: profileByIdError } = await supabase
         .from('profiles')
-        .select('role')
+        .select('id,user_id,role')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
+
+      profile = profileById
+
+      if (!profile) {
+        const { data: profileByUserId, error: profileByUserIdError } = await supabase
+          .from('profiles')
+          .select('id,user_id,role')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        profile = profileByUserId
+
+        if (!profile && (profileByIdError || profileByUserIdError)) {
+          setIsAdmin(false)
+          setLoading(false)
+          setMsg(profileByUserIdError?.message || profileByIdError?.message || 'Acesso negado.')
+          return
+        }
+      }
 
       if (!mounted) return
 
@@ -107,15 +145,17 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
       setIsAdmin(true)
 
       const list = await loadStudents()
-            setStudents(list)
+      setStudents(list)
       if (list.length > 0) setSelectedId(list[0].user_id)
 
       setLoading(false)
     }
 
     load()
-    return () => (mounted = false)
-  }, [])
+    return () => {
+      mounted = false
+    }
+  }, [navigate])
 
   const selectedStudent = useMemo(
     () => students.find((s) => s.user_id === selectedId),
@@ -132,7 +172,73 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
     return c
   }, [students])
 
-  // Gráfico de colunas por mês (snapshot simples)
+  function isUuid(value) {
+    return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  }
+
+  async function findExistingProfileId(candidate) {
+    if (!isUuid(candidate)) return null
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', candidate)
+      .maybeSingle()
+
+    return data?.id || null
+  }
+
+  async function resolveUserId(student) {
+    const email = student?.email?.trim().toLowerCase()
+
+    // Regra principal: resolver o perfil pelo e-mail do cadastro selecionado.
+    if (email) {
+      const { data: profileByEmail } = await supabase
+        .from('profiles')
+        .select('id,email')
+        .ilike('email', email)
+        .limit(1)
+
+      const emailUserId = profileByEmail?.[0]?.id
+      if (emailUserId && isUuid(emailUserId)) return emailUserId
+    }
+
+    // Prioriza vínculo por e-mail em patient_records para evitar usar user_id incorreto
+    // vindo da view admin_students.
+    if (email) {
+      const { data: records } = await supabase
+        .from('patient_records')
+        .select('user_id')
+        .ilike('email', email)
+        .limit(5)
+
+      const recordCandidates = (records || []).map((record) => record.user_id)
+
+      for (const candidate of recordCandidates) {
+        const foundId = await findExistingProfileId(candidate)
+        if (foundId) return foundId
+      }
+    }
+
+    const directCandidates = [
+      student?.user_id,
+      student?.profile_id,
+    ]
+
+    for (const candidate of directCandidates) {
+      const foundId = await findExistingProfileId(candidate)
+      if (!foundId) continue
+
+      // Proteção: não cair no id do admin logado quando o e-mail selecionado é de outro aluno.
+      const selectedIsAdmin = email && adminAuth.email && email === adminAuth.email
+      if (adminAuth.id && foundId === adminAuth.id && !selectedIsAdmin) continue
+
+      return foundId
+    }
+
+    return null
+  }
+
   const chartData = useMemo(() => {
     if (!students.length) return []
 
@@ -174,39 +280,19 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
       return
     }
 
+    const userId = await resolveUserId(selectedStudent)
+    if (!userId) {
+      setMsg('Não foi possível identificar o perfil do aluno para atualizar status.')
+      return
+    }
+
     const payload = {
       status: newStatus,
       status_changed_at: new Date().toISOString(),
       inactivated_at: newStatus === 'Inativo' ? new Date().toISOString() : null,
     }
 
-    const { error } = await supabase.from('profiles').update(payload).eq('id', selectedStudent.user_id)
-    if (error) {
-      setMsg(error.message)
-      return
-    }
-
-    setStudents((prev) =>
-      prev.map((s) => (s.user_id === selectedStudent.user_id ? { ...s, ...payload } : s))
-    )
-
-    setNewStatus('')
-    setMsg('Status atualizado.')
-  }
-
-  async function toggleAutoEval() {
-    setMsg('')
-    if (!selectedStudent) return
-    if (!selectedStudent.has_login) {
-      setMsg('Esse cadastro ainda não possui usuário de login para liberar autoavaliação.')
-      return
-    }
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ auto_eval_enabled: !selectedStudent.auto_eval_enabled })
-      .eq('id', selectedStudent.user_id)
-
+    const { error } = await supabase.from('profiles').update(payload).eq('id', userId)
     if (error) {
       setMsg(error.message)
       return
@@ -214,15 +300,63 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
 
     setStudents((prev) =>
       prev.map((s) =>
-        s.user_id === selectedStudent.user_id
-          ? { ...s, auto_eval_enabled: !selectedStudent.auto_eval_enabled }
+        s.user_id === userId ? { ...s, ...payload } : s
+      )
+    )
+
+    setNewStatus('')
+    setMsg('Status atualizado.')
+  }
+
+  async function enableAutoEval() {
+    setMsg('')
+    if (!selectedStudent) return
+    if (selectedStudent.auto_eval_enabled) {
+      setMsg('Autoavaliação já está liberada para este aluno.')
+      return
+    }
+    if (!selectedStudent.has_login) {
+      setMsg('Esse cadastro ainda não possui usuário de login para liberar autoavaliação.')
+      return
+    }
+
+    const userId = await resolveUserId(selectedStudent)
+    if (!userId) {
+      setMsg('Não foi possível identificar o perfil do aluno para liberar autoavaliação.')
+      return
+    }
+
+    const targetValue = !selectedStudent.auto_eval_enabled
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ auto_eval_enabled: targetValue })
+      .eq('id', userId)
+      .select('user_id:id,auto_eval_enabled')
+
+    if (error) {
+      setMsg(error.message)
+      return
+    }
+    if (!data?.length) {
+      setMsg(
+        'Nenhum perfil foi atualizado em profiles. Isso normalmente é (1) vínculo incorreto entre admin_students e profiles, ou (2) política RLS bloqueando UPDATE.'
+      )
+      return
+    }
+
+    const updatedValue = !!data[0]?.auto_eval_enabled
+
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.user_id === userId
+          ? { ...s, auto_eval_enabled: updatedValue }
           : s
       )
     )
-    setMsg('Autoavaliação atualizada.')
+    setMsg('Autoavaliação liberada.')
   }
 
-  
   async function sendAccessLink() {
     setMsg('')
     if (!selectedStudent) return
@@ -245,7 +379,9 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
           return
         }
 
-        setMsg('Link enviado. O aluno receberá o e-mail institucional da ICTUS para criar/redefinir a senha de acesso ao portal.')
+        setMsg(
+          'Link enviado. O aluno receberá o e-mail institucional da ICTUS para criar/redefinir a senha de acesso ao portal.'
+        )
         return
       }
 
@@ -267,7 +403,9 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
         return
       }
 
-      setMsg('Convite enviado. O aluno receberá um e-mail de acesso ao Portal ICTUS para ativar o login e definir as credenciais.')
+      setMsg(
+        'Convite enviado. O aluno receberá um e-mail de acesso ao Portal ICTUS para ativar o login e definir as credenciais.'
+      )
     } finally {
       setSendingAccessLink(false)
     }
@@ -285,9 +423,7 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
       return
     }
 
-    // validação simples
-    const isPdf =
-      pdfFile.type === 'application/pdf' || pdfFile.name.toLowerCase().endsWith('.pdf')
+    const isPdf = pdfFile.type === 'application/pdf' || pdfFile.name.toLowerCase().endsWith('.pdf')
     if (!isPdf) {
       setMsg('O arquivo precisa ser PDF.')
       return
@@ -299,8 +435,7 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
       const safeName = pdfFile.name.replace(/[^\w.\-]+/g, '_')
       const path = `${selectedStudent.user_id}/${Date.now()}-${safeName}`
 
-      const { error: upErr } = await supabase
-        .storage
+      const { error: upErr } = await supabase.storage
         .from('avaliacoes-pdf')
         .upload(path, pdfFile, { upsert: false })
 
@@ -309,13 +444,11 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
         return
       }
 
-      const { error: insErr } = await supabase
-        .from('evaluations')
-        .insert({
-          user_id: selectedStudent.user_id,
-          title: pdfTitle || 'Avaliação Fotogramétrica',
-          file_path: path,
-        })
+      const { error: insErr } = await supabase.from('evaluations').insert({
+        user_id: selectedStudent.user_id,
+        title: pdfTitle || 'Avaliação Fotogramétrica',
+        file_path: path,
+      })
 
       if (insErr) {
         setMsg(insErr.message)
@@ -324,7 +457,6 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
 
       setPdfFile(null)
       setPdfTitle('')
-      // limpa o input visualmente
       const el = document.getElementById('pdf-input')
       if (el) el.value = ''
 
@@ -430,7 +562,7 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
 
                 {selectedStudent ? (
                   <>
-                                      {!selectedStudent.has_login && (
+                    {!selectedStudent.has_login && (
                       <div style={{ fontSize: 13, color: '#b45309' }}>
                         Cadastro criado sem usuário de login. Para liberar autoavaliação, primeiro é
                         necessário vincular/criar o usuário do aluno.
@@ -458,13 +590,17 @@ const [sendingAccessLink, setSendingAccessLink] = useState(false)
                       </button>
                     </div>
 
-                    <button type="button" onClick={toggleAutoEval}>
+                    <button
+                      type="button"
+                      onClick={enableAutoEval}
+                      disabled={selectedStudent.auto_eval_enabled}
+                    >
                       {selectedStudent.auto_eval_enabled
-                        ? 'Fechar autoavaliação'
+                        ? 'Autoavaliação já liberada'
                         : 'Liberar autoavaliação'}
                     </button>
-                    
-                     <button
+
+                    <button
                       type="button"
                       onClick={sendAccessLink}
                       disabled={sendingAccessLink || !selectedStudent.email}
